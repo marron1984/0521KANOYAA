@@ -28,7 +28,13 @@ for nxt in x2 x3 x4; do
   acc=$(echo "$acc + $D - $T" | bc)
   n=$((n+1))
 done
-FILTER="${FILTER}[x4]format=yuv420p[vout]"
+FONT="/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc"
+TITLE="こだわりのアメニティ"
+SUB="― 見えないところにこそ、本気を ―"
+FILTER="${FILTER}[x4]drawbox=y=ih*0.60:w=iw:h=ih*0.20:color=black@0.32:t=fill,"
+FILTER="${FILTER}drawtext=fontfile='${FONT}':text='${TITLE}':fontcolor=white:fontsize=82:x=(w-text_w)/2:y=h*0.645:shadowcolor=black@0.7:shadowx=2:shadowy=2:alpha='if(lt(t,0.6),0,if(lt(t,1.2),(t-0.6)/0.6,1))',"
+FILTER="${FILTER}drawtext=fontfile='${FONT}':text='${SUB}':fontcolor=white@0.92:fontsize=40:x=(w-text_w)/2:y=h*0.645+128:shadowcolor=black@0.7:shadowx=2:shadowy=2:alpha='if(lt(t,0.9),0,if(lt(t,1.5),(t-0.9)/0.6,1))',"
+FILTER="${FILTER}format=yuv420p[vout]"
 
 ffmpeg -y \
   -loop 1 -t "$IN" -i img1.jpg \
