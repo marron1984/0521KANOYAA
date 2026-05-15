@@ -48,14 +48,21 @@ for nxt in x2 x3 x4; do
 done
 FILTER="${FILTER}[x4]format=yuv420p[vout]"
 
+# Total video length and BGM fade timing
+END=$(echo "5 * $D - 3 * $T" | bc)
+FOUT=$(echo "$END - 2.5" | bc)
+FILTER="${FILTER};[5:a]afade=t=in:st=0:d=1.5,afade=t=out:st=${FOUT}:d=2.5,volume=0.8[aout]"
+
 ffmpeg -y \
   -loop 1 -t "$IN" -i img1.jpg \
   -loop 1 -t "$IN" -i img2.jpg \
   -loop 1 -t "$IN" -i img3.jpg \
   -loop 1 -t "$IN" -i img4.jpg \
   -loop 1 -t "$IN" -i img5.jpg \
+  -i ../Garden_of_Quiet_Returns.mp3 \
   -filter_complex "$FILTER" \
-  -map "[vout]" \
+  -map "[vout]" -map "[aout]" \
   -r "$FPS" -c:v libx264 -profile:v high -pix_fmt yuv420p -preset medium -crf 18 \
-  -movflags +faststart \
+  -c:a aac -b:a 192k -ar 44100 \
+  -shortest -movflags +faststart \
   ../reel_amenity.mp4
