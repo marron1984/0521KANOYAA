@@ -2,16 +2,34 @@
 set -e
 cd "$(dirname "$0")"
 
-D=3.0      # display seconds per image
+D=4.5      # display seconds per image
 T=0.7      # crossfade seconds
 W=1080
 H=1920
 FPS=30
 IN=$(echo "$D + $T" | bc)   # each source clip length with buffer
+FONT="/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc"
 
-# Per-image: blurred fill background + sharp fitted foreground
+# drawtext with outline + shadow (no background band), fades in within the clip
+dt() { # text size y fadestart [alpha_max]
+  local txt="$1" size="$2" yy="$3" fs="$4" am="${5:-1}"
+  echo "drawtext=fontfile='${FONT}':text='${txt}':fontcolor=white@${am}:fontsize=${size}:x=(w-text_w)/2:y=${yy}:bordercolor=black@0.5:borderw=4:shadowcolor=black@0.55:shadowx=2:shadowy=2:alpha='if(lt(t\,${fs})\,0\,if(lt(t\,${fs}+0.6)\,(t-${fs})/0.6\,1))'"
+}
+
+# Per-scene telop (text + placement crafted individually)
+scene_text() {
+  case "$1" in
+    0) echo "$(dt 'こだわりのアメニティ' 84 'h*0.43' 0.4),$(dt '― 細部に宿る、もてなしの心 ―' 38 'h*0.43+128' 0.7 0.92)" ;;
+    1) echo "$(dt '肌にふれるものだから' 60 'h*0.78' 0.5),$(dt 'ひとつずつ、選ぶ。' 60 'h*0.78+86' 0.8)" ;;
+    2) echo "$(dt '香りも、佇まいも。' 66 'h*0.15' 0.5)" ;;
+    3) echo "$(dt '見えないところにこそ' 62 'h*0.48' 0.5),$(dt '本気を。' 62 'h*0.48+88' 0.8)" ;;
+    4) echo "$(dt 'その一室が、空くのを待っています' 50 'h*0.72' 0.5),$(dt 'ご予約はプロフィールのリンクから' 36 'h*0.72+92' 0.9 0.95)" ;;
+  esac
+}
+
+# Per-image: blurred fill background + sharp fitted foreground + per-scene text
 build_clip() {
-  echo "[$1:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=30,eq=brightness=-0.06[bg$1];[$1:v]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg$1];[bg$1][fg$1]overlay=(W-w)/2:(H-h)/2,setsar=1,fps=${FPS},format=yuv420p,trim=duration=${IN},setpts=PTS-STARTPTS[v$1];"
+  echo "[$1:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=30,eq=brightness=-0.06[bg$1];[$1:v]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg$1];[bg$1][fg$1]overlay=(W-w)/2:(H-h)/2,setsar=1,$(scene_text $1),fps=${FPS},format=yuv420p,trim=duration=${IN},setpts=PTS-STARTPTS[v$1];"
 }
 
 FILTER=""
@@ -28,13 +46,7 @@ for nxt in x2 x3 x4; do
   acc=$(echo "$acc + $D - $T" | bc)
   n=$((n+1))
 done
-FONT="/usr/share/fonts/opentype/noto/NotoSerifCJK-Bold.ttc"
-TITLE="こだわりのアメニティ"
-SUB="― 見えないところにこそ、本気を ―"
-FILTER="${FILTER}[x4]drawbox=y=ih*0.60:w=iw:h=ih*0.20:color=black@0.32:t=fill,"
-FILTER="${FILTER}drawtext=fontfile='${FONT}':text='${TITLE}':fontcolor=white:fontsize=82:x=(w-text_w)/2:y=h*0.645:shadowcolor=black@0.7:shadowx=2:shadowy=2:alpha='if(lt(t,0.6),0,if(lt(t,1.2),(t-0.6)/0.6,1))',"
-FILTER="${FILTER}drawtext=fontfile='${FONT}':text='${SUB}':fontcolor=white@0.92:fontsize=40:x=(w-text_w)/2:y=h*0.645+128:shadowcolor=black@0.7:shadowx=2:shadowy=2:alpha='if(lt(t,0.9),0,if(lt(t,1.5),(t-0.9)/0.6,1))',"
-FILTER="${FILTER}format=yuv420p[vout]"
+FILTER="${FILTER}[x4]format=yuv420p[vout]"
 
 ffmpeg -y \
   -loop 1 -t "$IN" -i img1.jpg \
