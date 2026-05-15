@@ -1,0 +1,43 @@
+#!/bin/bash
+set -e
+cd "$(dirname "$0")"
+
+D=3.0      # display seconds per image
+T=0.7      # crossfade seconds
+W=1080
+H=1920
+FPS=30
+IN=$(echo "$D + $T" | bc)   # each source clip length with buffer
+
+# Per-image: blurred fill background + sharp fitted foreground
+build_clip() {
+  echo "[$1:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=30,eq=brightness=-0.06[bg$1];[$1:v]scale=${W}:${H}:force_original_aspect_ratio=decrease[fg$1];[bg$1][fg$1]overlay=(W-w)/2:(H-h)/2,setsar=1,fps=${FPS},format=yuv420p,trim=duration=${IN},setpts=PTS-STARTPTS[v$1];"
+}
+
+FILTER=""
+for i in 0 1 2 3 4; do FILTER="${FILTER}$(build_clip $i)"; done
+
+# Chain xfade transitions
+off=$(echo "$D - $T" | bc)
+FILTER="${FILTER}[v0][v1]xfade=transition=fade:duration=${T}:offset=${off}[x1];"
+acc=$(echo "$D + $D - $T" | bc)
+n=2
+for nxt in x2 x3 x4; do
+  off=$(echo "$acc - $T" | bc)
+  FILTER="${FILTER}[x$((n-1))][v${n}]xfade=transition=fade:duration=${T}:offset=${off}[${nxt}];"
+  acc=$(echo "$acc + $D - $T" | bc)
+  n=$((n+1))
+done
+FILTER="${FILTER}[x4]format=yuv420p[vout]"
+
+ffmpeg -y \
+  -loop 1 -t "$IN" -i img1.jpg \
+  -loop 1 -t "$IN" -i img2.jpg \
+  -loop 1 -t "$IN" -i img3.jpg \
+  -loop 1 -t "$IN" -i img4.jpg \
+  -loop 1 -t "$IN" -i img5.jpg \
+  -filter_complex "$FILTER" \
+  -map "[vout]" \
+  -r "$FPS" -c:v libx264 -profile:v high -pix_fmt yuv420p -preset medium -crf 18 \
+  -movflags +faststart \
+  ../reel_amenity.mp4
